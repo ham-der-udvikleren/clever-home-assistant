@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+*.har
+grpc
+*.apk
+all_dex_strings.txt
+screenshot.png
+frida_capture.log
+agent.bundle.js
+docker/frida-server

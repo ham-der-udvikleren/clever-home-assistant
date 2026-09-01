@@ -1,0 +1,15 @@
+services:
+  clever-sidecar:
+    build: .
+    container_name: clever-sidecar
+    restart: unless-stopped
+    ports:
+      - "6080:6080" # noVNC (browser-based login)
+      - "8000:8000" # /status JSON endpoint for Home Assistant
+    volumes:
+      - clever-android-data:/root/.android
+    devices:
+      - /dev/kvm # remove this line if your host has no KVM support
+
+volumes:
+  clever-android-data:
