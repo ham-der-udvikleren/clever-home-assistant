@@ -1,38 +1,42 @@
-"""DataUpdateCoordinator for the optional live-status add-on."""
+"""DataUpdateCoordinator for the live charging status (read directly from Firestore)."""
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 
-import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .api import CleverApiClient
 from .const import DOMAIN, LIVE_STATUS_UPDATE_INTERVAL
-from .live_status import LiveChargingStatus, parse_status_response
+from .exceptions import CleverApiError, CleverAuthError
+from .live_status import LiveChargingStatus, parse_transactions_response
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class CleverLiveStatusCoordinator(DataUpdateCoordinator[LiveChargingStatus | None]):
-    """Polls the live-status add-on's /status endpoint, if configured."""
+    """Polls the account's live charging session from Firestore."""
 
-    def __init__(self, hass: HomeAssistant, session: aiohttp.ClientSession, url: str) -> None:
+    def __init__(self, hass: HomeAssistant, client: CleverApiClient) -> None:
         super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN}_live_status",
             update_interval=LIVE_STATUS_UPDATE_INTERVAL,
         )
-        self._session = session
-        self._url = url
+        self._client = client
 
     async def _async_update_data(self) -> LiveChargingStatus | None:
         try:
-            async with self._session.get(self._url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                resp.raise_for_status()
-                payload = await resp.json()
-        except (aiohttp.ClientError, TimeoutError) as err:
-            raise UpdateFailed(f"Error fetching live status from {self._url}: {err}") from err
+            payload = await self._client.async_get_active_transactions()
+        except CleverAuthError as err:
+            # Auth failures are handled/reported by the main coordinator's reauth flow;
+            # here just surface it as a soft failure so live entities go unavailable.
+            raise UpdateFailed(f"Clever authentication failed: {err}") from err
+        except CleverApiError as err:
+            raise UpdateFailed(f"Error fetching Clever live status: {err}") from err
 
-        return parse_status_response(payload, captured_at_fallback=datetime.now(timezone.utc))
+        return parse_transactions_response(
+            payload, captured_at_fallback=datetime.now(timezone.utc)
+        )

@@ -1,6 +1,9 @@
 """API client for Clever's private mobile-app backend and Firebase auth."""
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import time
 from typing import Any
 
@@ -17,6 +20,8 @@ from .const import (
     FIREBASE_API_KEY,
     FIREBASE_CLIENT,
     FIREBASE_GMPID,
+    FIRESTORE_BASE_URL,
+    FIRESTORE_ROOT_COLLECTION,
     REFRESH_TOKEN_URL,
     TOKEN_REFRESH_MARGIN_SECONDS,
     VERIFY_PASSWORD_URL,
@@ -203,3 +208,55 @@ class CleverApiClient:
             "POST",
             f"/smartcharging/chargePoints/{charge_box_id}/connectors/{connector_id}/unboost",
         )
+
+    def _firebase_uid(self) -> str | None:
+        """Decode the Firebase user id from the current ID token (a JWT).
+
+        The uid is the owner segment of the Firestore path holding this account's
+        live charging data, and it's carried in the token's `user_id` claim.
+        """
+        if not self._id_token:
+            return None
+        parts = self._id_token.split(".")
+        if len(parts) != 3:
+            return None
+        try:
+            payload = parts[1] + "=" * (-len(parts[1]) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+        except (ValueError, binascii.Error, json.JSONDecodeError):
+            return None
+        return claims.get("user_id") or claims.get("sub")
+
+    async def async_get_active_transactions(self) -> dict[str, Any] | None:
+        """Fetch the live `active-transactions` Firestore collection for this user.
+
+        This is the same live-session data the official app shows (charging or not,
+        energy delivered, smart-charging plan), read directly from Firestore with the
+        ID token we already hold from login.
+        Returns the raw Firestore REST response, or None if the uid can't be resolved.
+        """
+        await self.async_ensure_token()
+        uid = self._firebase_uid()
+        if not uid:
+            return None
+        url = f"{FIRESTORE_BASE_URL}/{FIRESTORE_ROOT_COLLECTION}/{uid}/active-transactions"
+
+        async def _fetch() -> dict[str, Any]:
+            headers = {"Authorization": f"Bearer {self._id_token}"}
+            async with self._session.get(url, headers=headers) as resp:
+                if resp.status == 401:
+                    # Token expired between ensure_token and now - refresh once and retry.
+                    await self._async_refresh_token()
+                    retry_headers = {"Authorization": f"Bearer {self._id_token}"}
+                    async with self._session.get(url, headers=retry_headers) as retry:
+                        if retry.status != 200:
+                            raise CleverApiError(f"Firestore returned {retry.status}")
+                        return await retry.json(content_type=None)
+                if resp.status != 200:
+                    raise CleverApiError(f"Firestore returned {resp.status}")
+                return await resp.json(content_type=None)
+
+        try:
+            return await _fetch()
+        except aiohttp.ClientError as err:
+            raise CleverApiError(f"Error communicating with Firestore: {err}") from err

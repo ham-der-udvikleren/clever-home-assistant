@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import CleverApiClient
-from .const import CONF_LIVE_STATUS_ENABLED, CONF_LIVE_STATUS_URL, CONF_REFRESH_TOKEN, DOMAIN
+from .const import CONF_REFRESH_TOKEN, DOMAIN
 from .coordinator import CleverDataUpdateCoordinator
 from .live_status_coordinator import CleverLiveStatusCoordinator
 
@@ -30,12 +30,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    live_status_coordinator: CleverLiveStatusCoordinator | None = None
-    if entry.data.get(CONF_LIVE_STATUS_ENABLED) and entry.data.get(CONF_LIVE_STATUS_URL):
-        live_status_coordinator = CleverLiveStatusCoordinator(
-            hass, session, entry.data[CONF_LIVE_STATUS_URL]
-        )
-        await live_status_coordinator.async_refresh()
+    # Live charging status comes straight from Firestore using the same login, so it's
+    # always available. A transient failure here must not block setup, so refresh softly
+    # and let live entities report unavailable until data arrives.
+    live_status_coordinator = CleverLiveStatusCoordinator(hass, client)
+    await live_status_coordinator.async_refresh()
     hass.data[DOMAIN][f"{entry.entry_id}_live"] = live_status_coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

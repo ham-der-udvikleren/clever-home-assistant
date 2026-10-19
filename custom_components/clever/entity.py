@@ -60,10 +60,10 @@ def find_charger_device_info(
 
 
 class CleverLiveStatusEntity(CoordinatorEntity[CleverLiveStatusCoordinator]):
-    """Base entity for data from the optional live-status add-on.
+    """Base entity for live charging-session data (read from Firestore).
 
     Not tied to a fixed charger - it belongs to whichever charger the live session is
-    on, so its device is only known once the add-on has actually returned data.
+    on, so its device is only known once the live status has actually returned data.
     """
 
     _attr_has_entity_name = True
@@ -95,9 +95,9 @@ class CleverLiveStatusEntity(CoordinatorEntity[CleverLiveStatusCoordinator]):
         """Link this entity to its charger's device, once live data says which one that is.
 
         HA only reads device_info when an entity is added - so if HA started (or the
-        integration reloaded) while the add-on was unreachable, the entity got registered
-        with no device (detaching it from its charger), and nothing would re-attach it
-        short of another manual reload, even after the add-on came back.
+        integration reloaded) while there was no active session yet, the entity got
+        registered with no device (detaching it from its charger), and nothing would
+        re-attach it short of another manual reload, even once a session appeared.
         """
         device_info = self.device_info
         if device_info is None or self.registry_entry is None:

@@ -5,14 +5,7 @@
         "description": "Log in with your Clever account email and password.",
         "data": {
           "email": "Email",
-          "password": "Password",
-          "live_status_enabled": "Use the live-status add-on (optional)"
-        }
-      },
-      "live_status": {
-        "description": "Enter the URL of the live-status add-on's /status endpoint (e.g. http://192.168.1.50:8000/status). This add-on is a separate, optional Docker sidecar - it is not required for the integration to work.",
-        "data": {
-          "live_status_url": "Live-status URL"
+          "password": "Password"
         }
       },
       "reauth_confirm": {
@@ -24,81 +17,36 @@
     },
     "error": {
       "invalid_auth": "Invalid email or password.",
-      "cannot_connect": "Could not connect to Clever.",
-      "cannot_connect_live_status": "Could not reach the live-status add-on at that URL."
+      "cannot_connect": "Could not connect to Clever."
     },
     "abort": {
       "already_configured": "This Clever account is already configured.",
       "reauth_successful": "Re-authentication was successful."
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "description": "Enable or update the optional live-status add-on.",
-        "data": {
-          "live_status_enabled": "Use the live-status add-on",
-          "live_status_url": "Live-status URL"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect_live_status": "Could not reach the live-status add-on at that URL."
-    }
-  },
   "entity": {
     "sensor": {
-      "status": {
-        "name": "Status"
-      },
-      "last_seen": {
-        "name": "Last seen"
-      },
-      "model": {
-        "name": "Model"
-      },
-      "phase_count": {
-        "name": "Phase count"
-      },
-      "ampere": {
-        "name": "Ampere"
-      },
-      "live_charging_status": {
-        "name": "Charging status"
-      },
-      "live_energy_delivered": {
-        "name": "Energy delivered"
-      },
-      "live_estimated_finish_time": {
-        "name": "Estimated finish time"
-      },
-      "live_session_started_at": {
-        "name": "Session started"
-      },
-      "live_status_message": {
-        "name": "Status message"
-      }
+      "status": { "name": "Status" },
+      "last_seen": { "name": "Last seen" },
+      "model": { "name": "Model" },
+      "phase_count": { "name": "Phase count" },
+      "ampere": { "name": "Ampere" },
+      "live_charging_status": { "name": "Charging status" },
+      "live_energy_delivered": { "name": "Energy delivered" },
+      "live_estimated_finish_time": { "name": "Estimated finish time" },
+      "live_session_started_at": { "name": "Session started" },
+      "live_status_message": { "name": "Status message" }
     },
     "binary_sensor": {
-      "online": {
-        "name": "Online"
-      },
-      "is_charging": {
-        "name": "Is charging"
-      },
-      "live_stop_requested": {
-        "name": "Stop requested"
-      }
+      "online": { "name": "Online" },
+      "is_charging": { "name": "Is charging" },
+      "live_stop_requested": { "name": "Stop requested" }
     },
     "number": {
-      "power_required": {
-        "name": "Power required"
-      }
+      "power_required": { "name": "Power required" }
     },
     "time": {
-      "departure_time": {
-        "name": "Departure time"
-      }
+      "departure_time": { "name": "Departure time" }
     },
     "select": {
       "smart_charging": {

@@ -4,15 +4,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
-from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import CleverApiClient
-from .const import CONF_LIVE_STATUS_ENABLED, CONF_LIVE_STATUS_URL, CONF_REFRESH_TOKEN, DOMAIN
+from .const import CONF_REFRESH_TOKEN, DOMAIN
 from .exceptions import CleverAuthError
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,23 +19,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_EMAIL): str,
         vol.Required(CONF_PASSWORD): str,
-        vol.Optional(CONF_LIVE_STATUS_ENABLED, default=False): bool,
     }
 )
-
-STEP_LIVE_STATUS_DATA_SCHEMA = vol.Schema({vol.Required(CONF_LIVE_STATUS_URL): str})
-
-
-async def _async_validate_live_status_url(hass, url: str) -> bool:
-    """Do a light connectivity check against the add-on's /status endpoint."""
-    session = async_get_clientsession(hass)
-    try:
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-            resp.raise_for_status()
-            await resp.json()
-    except (aiohttp.ClientError, TimeoutError, ValueError):
-        return False
-    return True
 
 
 class CleverConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -47,12 +30,6 @@ class CleverConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._reauth_entry: ConfigEntry | None = None
-        self._pending_data: dict[str, Any] = {}
-
-    @staticmethod
-    @callback
-    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        return CleverOptionsFlow()
 
     async def _async_validate_login(
         self, email: str, password: str
@@ -85,39 +62,16 @@ class CleverConfigFlow(ConfigFlow, domain=DOMAIN):
                 user_input[CONF_EMAIL], user_input[CONF_PASSWORD]
             )
             if not errors:
-                self._pending_data = {
-                    CONF_EMAIL: user_input[CONF_EMAIL],
-                    CONF_REFRESH_TOKEN: refresh_token,
-                    CONF_LIVE_STATUS_ENABLED: user_input[CONF_LIVE_STATUS_ENABLED],
-                }
-                if user_input[CONF_LIVE_STATUS_ENABLED]:
-                    return await self.async_step_live_status()
                 return self.async_create_entry(
-                    title=user_input[CONF_EMAIL], data=self._pending_data
+                    title=user_input[CONF_EMAIL],
+                    data={
+                        CONF_EMAIL: user_input[CONF_EMAIL],
+                        CONF_REFRESH_TOKEN: refresh_token,
+                    },
                 )
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
-        )
-
-    async def async_step_live_status(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Ask for the live-status add-on's /status URL (only shown if the checkbox was ticked)."""
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            url = user_input[CONF_LIVE_STATUS_URL]
-            if await _async_validate_live_status_url(self.hass, url):
-                return self.async_create_entry(
-                    title=self._pending_data[CONF_EMAIL],
-                    data={**self._pending_data, CONF_LIVE_STATUS_URL: url},
-                )
-            errors["base"] = "cannot_connect_live_status"
-
-        return self.async_show_form(
-            step_id="live_status",
-            data_schema=STEP_LIVE_STATUS_DATA_SCHEMA,
-            errors=errors,
         )
 
     async def async_step_reauth(
@@ -160,38 +114,3 @@ class CleverConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"email": email},
             errors=errors,
         )
-
-
-class CleverOptionsFlow(OptionsFlow):
-    """Lets the user enable/disable or change the live-status add-on URL later."""
-
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        errors: dict[str, str] = {}
-        entry = self.config_entry
-        if user_input is not None:
-            new_data = {**entry.data, CONF_LIVE_STATUS_ENABLED: user_input[CONF_LIVE_STATUS_ENABLED]}
-            if user_input[CONF_LIVE_STATUS_ENABLED]:
-                url = user_input.get(CONF_LIVE_STATUS_URL, "")
-                if not url or not await _async_validate_live_status_url(self.hass, url):
-                    errors["base"] = "cannot_connect_live_status"
-                else:
-                    new_data[CONF_LIVE_STATUS_URL] = url
-            if not errors:
-                self.hass.config_entries.async_update_entry(entry, data=new_data)
-                await self.hass.config_entries.async_reload(entry.entry_id)
-                return self.async_create_entry(title="", data={})
-
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_LIVE_STATUS_ENABLED,
-                    default=entry.data.get(CONF_LIVE_STATUS_ENABLED, False),
-                ): bool,
-                vol.Optional(
-                    CONF_LIVE_STATUS_URL, default=entry.data.get(CONF_LIVE_STATUS_URL, "")
-                ): str,
-            }
-        )
-        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

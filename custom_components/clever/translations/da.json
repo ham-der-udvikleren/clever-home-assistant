@@ -5,14 +5,7 @@
         "description": "Log ind med din Clever-kontos email og adgangskode.",
         "data": {
           "email": "Email",
-          "password": "Adgangskode",
-          "live_status_enabled": "Brug live-status-tilføjelsen (valgfrit)"
-        }
-      },
-      "live_status": {
-        "description": "Indtast URL'en til live-status-tilføjelsens /status-endpoint (f.eks. http://192.168.1.50:8000/status). Denne tilføjelse er en separat, valgfri Docker-sidecar - den er ikke nødvendig for at integrationen fungerer.",
-        "data": {
-          "live_status_url": "Live-status-URL"
+          "password": "Adgangskode"
         }
       },
       "reauth_confirm": {
@@ -24,81 +17,36 @@
     },
     "error": {
       "invalid_auth": "Forkert email eller adgangskode.",
-      "cannot_connect": "Kunne ikke oprette forbindelse til Clever.",
-      "cannot_connect_live_status": "Kunne ikke få forbindelse til live-status-tilføjelsen på den angivne URL."
+      "cannot_connect": "Kunne ikke oprette forbindelse til Clever."
     },
     "abort": {
       "already_configured": "Denne Clever-konto er allerede konfigureret.",
       "reauth_successful": "Genautentificering lykkedes."
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "description": "Aktivér eller opdatér den valgfrie live-status-tilføjelse.",
-        "data": {
-          "live_status_enabled": "Brug live-status-tilføjelsen",
-          "live_status_url": "Live-status-URL"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect_live_status": "Kunne ikke få forbindelse til live-status-tilføjelsen på den angivne URL."
-    }
-  },
   "entity": {
     "sensor": {
-      "status": {
-        "name": "Status"
-      },
-      "last_seen": {
-        "name": "Sidst set"
-      },
-      "model": {
-        "name": "Model"
-      },
-      "phase_count": {
-        "name": "Faseantal"
-      },
-      "ampere": {
-        "name": "Ampere"
-      },
-      "live_charging_status": {
-        "name": "Opladningsstatus"
-      },
-      "live_energy_delivered": {
-        "name": "Leveret energi"
-      },
-      "live_estimated_finish_time": {
-        "name": "Estimeret sluttidspunkt"
-      },
-      "live_session_started_at": {
-        "name": "Session startet"
-      },
-      "live_status_message": {
-        "name": "Statusbesked"
-      }
+      "status": { "name": "Status" },
+      "last_seen": { "name": "Sidst set" },
+      "model": { "name": "Model" },
+      "phase_count": { "name": "Faseantal" },
+      "ampere": { "name": "Ampere" },
+      "live_charging_status": { "name": "Opladningsstatus" },
+      "live_energy_delivered": { "name": "Leveret energi" },
+      "live_estimated_finish_time": { "name": "Estimeret sluttidspunkt" },
+      "live_session_started_at": { "name": "Session startet" },
+      "live_status_message": { "name": "Statusbesked" }
     },
     "binary_sensor": {
-      "online": {
-        "name": "Online"
-      },
-      "is_charging": {
-        "name": "Oplader"
-      },
-      "live_stop_requested": {
-        "name": "Stop anmodet"
-      }
+      "online": { "name": "Online" },
+      "is_charging": { "name": "Oplader" },
+      "live_stop_requested": { "name": "Stop anmodet" }
     },
     "number": {
-      "power_required": {
-        "name": "Ønsket energi"
-      }
+      "power_required": { "name": "Ønsket energi" }
     },
     "time": {
-      "departure_time": {
-        "name": "Afgangstidspunkt"
-      }
+      "departure_time": { "name": "Afgangstidspunkt" }
     },
     "select": {
       "smart_charging": {

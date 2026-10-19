@@ -45,9 +45,9 @@ class CleverSmartChargingSelect(CleverChargerEntity, SelectEntity, RestoreEntity
     Clever's REST API cannot tell us whether smart charging is currently
     disabled/boosted - the raw strategySettings.disabled field it returns does NOT
     track it (confirmed by testing: it stayed "enabled" through an active boost).
-    Only the optional live-status add-on's Firestore data does, via `strategy=BOOST`
-    schedule segments - so when that add-on is configured, it's used as the source of
-    truth. Without it, this falls back to being purely optimistic: it only
+    The live Firestore data does, via `strategy=Boost` plan segments, so when there's
+    a current session for this charger it's used as the source of truth. When there's
+    no active session to read from, this falls back to being optimistic: it only
     reflects the last command we ourselves sent, restored across HA restarts.
     """
 
@@ -69,15 +69,15 @@ class CleverSmartChargingSelect(CleverChargerEntity, SelectEntity, RestoreEntity
     def current_option(self) -> str | None:
         live_status = self._live_status_coordinator.data if self._live_status_coordinator else None
         if live_status is None or live_status.charge_point_id != self._charger.charge_box_id:
-            # No live-status add-on configured (or no data for this charger yet) -
-            # this is genuinely all we have without it.
+            # No current session to read from (no active charge on this charger yet) -
+            # the optimistic last-command value is genuinely all we have.
             return self._current_option
 
         if not live_status.smart_charging_disabled:
             return SMART_CHARGING_ENABLE
-        if live_status.schedule_sub_strategy == "SESSION":
+        if live_status.schedule_sub_strategy == "Session":
             return SMART_CHARGING_DISABLE_UNTIL_CHARGED
-        if live_status.schedule_sub_strategy == "TIMEBOX":
+        if live_status.schedule_sub_strategy == "Timebox":
             duration = live_status.boost_duration_minutes
             if duration is not None:
                 return min(_TIMEBOX_MINUTES, key=lambda option: abs(_TIMEBOX_MINUTES[option] - duration))

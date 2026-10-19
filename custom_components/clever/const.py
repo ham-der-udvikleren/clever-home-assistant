@@ -4,12 +4,21 @@ from datetime import timedelta
 DOMAIN = "clever"
 CONF_REFRESH_TOKEN = "refresh_token"
 
-# --- Optional live-status add-on (Docker sidecar) integration ---
-# The sidecar exposes near-real-time charging session data (Clever's REST API has
-# no live equivalent) over a small HTTP endpoint - entirely optional, off by default.
-CONF_LIVE_STATUS_ENABLED = "live_status_enabled"
-CONF_LIVE_STATUS_URL = "live_status_url"
+# --- Live charging status (direct from Firebase Firestore) ---
+# Clever's REST API has no live-session equivalent, but the app's live data lives in
+# Firestore and is readable with the very same Firebase ID token this integration
+# already holds from login. We poll it on a short interval.
 LIVE_STATUS_UPDATE_INTERVAL = timedelta(seconds=10)
+
+# Clever's Firebase project + the named Firestore database the app's live session data
+# lives in. Documents are at: {ROOT_COLLECTION}/{firebase_uid}/active-transactions/*
+FIRESTORE_PROJECT = "clever-app-prod"
+FIRESTORE_DATABASE = "user-database"
+FIRESTORE_ROOT_COLLECTION = "v1-user-data"
+FIRESTORE_BASE_URL = (
+    f"https://firestore.googleapis.com/v1/projects/{FIRESTORE_PROJECT}"
+    f"/databases/{FIRESTORE_DATABASE}/documents"
+)
 
 # --- Google Identity Toolkit / Firebase secure token endpoints ---
 # This API key is embedded in the official Clever Android app itself (not a user

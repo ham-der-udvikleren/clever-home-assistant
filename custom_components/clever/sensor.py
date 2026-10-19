@@ -104,7 +104,7 @@ LIVE_STATUS_SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
 
 
 class CleverLiveStatusSensor(CleverLiveStatusEntity, SensorEntity):
-    """A read-only piece of live charging-session data from the optional add-on."""
+    """A read-only piece of live charging-session data (read from Firestore)."""
 
     def __init__(
         self,

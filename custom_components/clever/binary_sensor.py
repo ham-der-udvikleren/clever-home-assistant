@@ -51,7 +51,7 @@ class CleverOnlineSensor(CleverChargerEntity, BinarySensorEntity):
 
 
 class CleverIsChargingSensor(CleverLiveStatusEntity, BinarySensorEntity):
-    """Whether the charger is actively drawing power right now (live add-on only)."""
+    """Whether the charger is actively drawing power right now (from live status)."""
 
     _attr_translation_key = "is_charging"
     _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING
