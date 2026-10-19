@@ -80,6 +80,10 @@ som JSON. Peg Home Assistant-integrationens "live-status-tilføjelse"-indstillin
   emulatoren, installerer appen og begynder at relaye data.
 - Blev containeren dræbt ukontrolleret (f.eks. genstart af værten, OOM), rydder entrypointet
   automatisk gamle emulator-/X11-låse ved næste start.
+- Går selve emulatoren ned eller holder op med at svare (f.eks. `detected a hanging thread
+  'QEMU2 main loop'` i loggen), afslutter containeren sig selv, så Docker kan genstarte den
+  forfra - det kræver `restart: unless-stopped` (sat i `docker-compose.yml`). Sker det igen og
+  igen, er værten typisk for presset på CPU, disk-I/O eller RAM, eller kører selv i en VM (nested virtualisering).
 - Det er forventeligt, at Clever-appen af og til crasher og genstarter (en Google Play
   Services-relateret fejl, ikke noget vi kan gøre ved) - sidecar'en genstarter den automatisk,
   og det kræver ingen handling fra dig.

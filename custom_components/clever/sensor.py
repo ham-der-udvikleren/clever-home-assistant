@@ -7,12 +7,11 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, Sen
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import CleverDataUpdateCoordinator
-from .entity import CleverChargerEntity, find_charger_device_info
+from .entity import CleverChargerEntity, CleverLiveStatusEntity
 from .live_status_coordinator import CleverLiveStatusCoordinator
 from .models import CleverCharger
 
@@ -104,10 +103,8 @@ LIVE_STATUS_SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
 )
 
 
-class CleverLiveStatusSensor(CoordinatorEntity[CleverLiveStatusCoordinator], SensorEntity):
+class CleverLiveStatusSensor(CleverLiveStatusEntity, SensorEntity):
     """A read-only piece of live charging-session data from the optional add-on."""
-
-    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -115,21 +112,9 @@ class CleverLiveStatusSensor(CoordinatorEntity[CleverLiveStatusCoordinator], Sen
         main_coordinator: CleverDataUpdateCoordinator,
         description: SensorEntityDescription,
     ) -> None:
-        super().__init__(coordinator)
-        self._main_coordinator = main_coordinator
+        super().__init__(coordinator, main_coordinator)
         self.entity_description = description
         self._attr_unique_id = f"clever_live_status_{description.key}"
-
-    @property
-    def available(self) -> bool:
-        return super().available and self.coordinator.data is not None
-
-    @property
-    def device_info(self):
-        status = self.coordinator.data
-        if status is None:
-            return None
-        return find_charger_device_info(self._main_coordinator, status.charge_point_id)
 
     @property
     def native_value(self) -> str | float | datetime | None:

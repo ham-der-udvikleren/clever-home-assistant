@@ -4,6 +4,10 @@ set -euo pipefail
 AVD_NAME="clever"
 DISPLAY_NUM=":0"
 export DISPLAY="${DISPLAY_NUM}"
+# Generous on purpose - software emulation (no /dev/kvm) can take many minutes to boot.
+BOOT_TIMEOUT="${BOOT_TIMEOUT:-900}"
+# How many consecutive failed adb health checks (30s apart) before giving up on the emulator.
+MAX_FAILED_HEALTH_CHECKS=3
 
 echo "[entrypoint] Starting virtual display + noVNC (for login, whenever it's needed)..."
 # A stale lock/socket FILE isn't the only way display :0 can be unavailable: if the
@@ -69,13 +73,30 @@ fi
 
 echo "[entrypoint] Clearing any stale AVD locks from a previous unclean shutdown..."
 find "${HOME}/.android/avd/${AVD_NAME}.avd" -name "*.lock" -exec rm -rf {} + 2>/dev/null || true
+# The emulator keeps its crash reports under /tmp, which survives a container restart -
+# left there, every boot re-reports the previous crash and asks for upload consent.
+rm -rf /tmp/android-*/emu-crash-* 2>/dev/null || true
 
 echo "[entrypoint] Booting emulator..."
-emulator -avd "${AVD_NAME}" -no-audio -no-boot-anim -no-snapshot ${ACCEL_FLAGS} &
+# -no-metrics: the emulator warns its metrics notice will become a blocking prompt in a
+# future release, and the Dockerfile always installs the latest emulator version.
+emulator -avd "${AVD_NAME}" -no-audio -no-boot-anim -no-snapshot -no-metrics ${ACCEL_FLAGS} &
+EMULATOR_PID=$!
 
-echo "[entrypoint] Waiting for device..."
-adb wait-for-device
-until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
+# Bail out (and let Docker's restart policy retry from scratch) instead of waiting forever
+# if the emulator dies or wedges mid-boot - e.g. its own hang detector killing it after
+# "detected a hanging thread 'QEMU2 main loop'".
+echo "[entrypoint] Waiting for boot (up to ${BOOT_TIMEOUT}s)..."
+BOOT_DEADLINE=$((SECONDS + BOOT_TIMEOUT))
+until [ "$(timeout 10 adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
+    if ! kill -0 "${EMULATOR_PID}" 2>/dev/null; then
+        echo "[entrypoint] FATAL: emulator exited during boot - see errors above." >&2
+        exit 1
+    fi
+    if [ "${SECONDS}" -ge "${BOOT_DEADLINE}" ]; then
+        echo "[entrypoint] FATAL: emulator did not finish booting within ${BOOT_TIMEOUT}s." >&2
+        exit 1
+    fi
     sleep 2
 done
 echo "[entrypoint] Boot complete."
@@ -120,4 +141,32 @@ cat <<'EOF'
 EOF
 
 echo "[entrypoint] Starting relay.py (spawns app under Frida, exposes :8000/status)..."
-exec python3 /opt/clever/relay.py
+python3 /opt/clever/relay.py &
+RELAY_PID=$!
+
+# relay.py only recovers from the *app* dying - if the emulator itself dies or stops
+# responding, it would just retry against a dead device forever while the container keeps
+# looking healthy. So watch both, and exit if either is gone: Docker's restart policy
+# (restart: unless-stopped) then brings the whole stack back up from a clean boot.
+FAILED_HEALTH_CHECKS=0
+while true; do
+    sleep 30
+    if ! kill -0 "${RELAY_PID}" 2>/dev/null; then
+        echo "[entrypoint] FATAL: relay.py exited - exiting so Docker restarts the container." >&2
+        exit 1
+    fi
+    if ! kill -0 "${EMULATOR_PID}" 2>/dev/null; then
+        echo "[entrypoint] FATAL: emulator exited - exiting so Docker restarts the container." >&2
+        exit 1
+    fi
+    if timeout 20 adb shell true >/dev/null 2>&1; then
+        FAILED_HEALTH_CHECKS=0
+        continue
+    fi
+    FAILED_HEALTH_CHECKS=$((FAILED_HEALTH_CHECKS + 1))
+    echo "[entrypoint] Emulator not responding to adb (${FAILED_HEALTH_CHECKS}/${MAX_FAILED_HEALTH_CHECKS})." >&2
+    if [ "${FAILED_HEALTH_CHECKS}" -ge "${MAX_FAILED_HEALTH_CHECKS}" ]; then
+        echo "[entrypoint] FATAL: emulator unresponsive - exiting so Docker restarts the container." >&2
+        exit 1
+    fi
+done
