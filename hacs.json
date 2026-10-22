@@ -2,5 +2,6 @@
   "name": "Clever",
   "content_in_root": false,
   "render_readme": true,
+  "country": "DK",
   "homeassistant": "2024.1.0"
 }
