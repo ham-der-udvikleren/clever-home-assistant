@@ -49,7 +49,7 @@ også kan ses i Home Assistant.
 
 ## Installation
 
-HACS understøttes ikke endnu - installer manuelt:
+HACS support er på vej. Indtil da, kan denne integration installeres manuelt:
 
 1. Kopiér indholdet af [`custom_components/clever`](custom_components/clever) ind i din Home Assistant `config/custom_components/clever` mappe.
 2. Genstart Home Assistant.
