@@ -35,7 +35,8 @@
       "live_energy_delivered": { "name": "Energy delivered" },
       "live_estimated_finish_time": { "name": "Estimated finish time" },
       "live_session_started_at": { "name": "Session started" },
-      "live_status_message": { "name": "Status message" }
+      "live_status_message": { "name": "Status message" },
+      "energy_total": { "name": "Total energy" }
     },
     "binary_sensor": {
       "online": { "name": "Online" },

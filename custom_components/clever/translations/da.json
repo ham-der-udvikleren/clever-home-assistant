@@ -35,7 +35,8 @@
       "live_energy_delivered": { "name": "Leveret energi" },
       "live_estimated_finish_time": { "name": "Estimeret sluttidspunkt" },
       "live_session_started_at": { "name": "Session startet" },
-      "live_status_message": { "name": "Statusbesked" }
+      "live_status_message": { "name": "Statusbesked" },
+      "energy_total": { "name": "Energi i alt" }
     },
     "binary_sensor": {
       "online": { "name": "Online" },
