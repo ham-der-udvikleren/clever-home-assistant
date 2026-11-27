@@ -102,6 +102,15 @@ class CleverLiveStatusEntity(CoordinatorEntity[CleverLiveStatusCoordinator]):
         device_info = self.device_info
         if device_info is None or self.registry_entry is None:
             return
-        device = dr.async_get(self.hass).async_get_device(identifiers=device_info["identifiers"])
+        registry = dr.async_get(self.hass)
+        if hasattr(registry, "async_get_device_by_identifier"):
+            # async_get_device is deprecated (breaks in HA 2027.8): identifiers are
+            # only unique within a config entry now
+            identifier = next(iter(device_info["identifiers"]))
+            device = registry.async_get_device_by_identifier(
+                identifier, self.registry_entry.config_entry_id
+            )
+        else:  # older Home Assistant
+            device = registry.async_get_device(identifiers=device_info["identifiers"])
         if device is not None and device.id != self.registry_entry.device_id:
             er.async_get(self.hass).async_update_entity(self.entity_id, device_id=device.id)
