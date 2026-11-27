@@ -1,15 +1,29 @@
 """Common base entity for Clever platforms."""
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import CleverDataUpdateCoordinator
+from .exceptions import CleverError
 from .live_status_coordinator import CleverLiveStatusCoordinator
 from .models import CleverCharger
+
+
+@contextmanager
+def command_errors(action: str) -> Iterator[None]:
+    """Report a failed command to the user instead of failing silently."""
+    try:
+        yield
+    except CleverError as err:
+        raise HomeAssistantError(f"Clever could not {action}: {err}") from err
 
 
 class CleverChargerEntity(CoordinatorEntity[CleverDataUpdateCoordinator]):

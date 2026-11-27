@@ -1,6 +1,8 @@
 """Select platform for Clever (smart-charging on/off/timed-disable control)."""
 from __future__ import annotations
 
+import time
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -16,8 +18,13 @@ from .const import (
     SMART_CHARGING_OPTIONS,
 )
 from .coordinator import CleverDataUpdateCoordinator
-from .entity import CleverChargerEntity
+from .entity import CleverChargerEntity, command_errors
 from .live_status_coordinator import CleverLiveStatusCoordinator
+
+# How long a sent command is shown even if Clever's live plan hasn't changed yet.
+# The live plan can be left over from a finished session and never change, so the
+# command must not be hidden by it, but it must not win forever either.
+_COMMAND_GRACE_SECONDS = 300
 
 _TIMEBOX_MINUTES = {
     SMART_CHARGING_DISABLE_1H: 60,
@@ -64,6 +71,10 @@ class CleverSmartChargingSelect(CleverChargerEntity, SelectEntity, RestoreEntity
         self._attr_unique_id = f"{charger_unique_id}_smart_charging"
         self._current_option: str | None = None
         self._live_status_coordinator = live_status_coordinator
+        # (session id, plan revision) of the live plan when we last sent a command,
+        # and when it was sent. While the live plan is unchanged, show the command.
+        self._command_plan: tuple[str | None, int | None] | None = None
+        self._command_sent_at: float = 0.0
 
     @property
     def current_option(self) -> str | None:
@@ -72,6 +83,13 @@ class CleverSmartChargingSelect(CleverChargerEntity, SelectEntity, RestoreEntity
             # No current session to read from (no active charge on this charger yet) -
             # the optimistic last-command value is genuinely all we have.
             return self._current_option
+
+        if self._command_plan is not None:
+            plan = (live_status.session_id, live_status.revision_number)
+            waiting = time.monotonic() - self._command_sent_at < _COMMAND_GRACE_SECONDS
+            if plan == self._command_plan and waiting:
+                return self._current_option
+            self._command_plan = None
 
         if not live_status.smart_charging_disabled:
             return SMART_CHARGING_ENABLE
@@ -104,16 +122,25 @@ class CleverSmartChargingSelect(CleverChargerEntity, SelectEntity, RestoreEntity
         connector_id = charger.connector_id
         client = self.coordinator.client
 
-        if option == SMART_CHARGING_ENABLE:
-            await client.async_unboost(charge_box_id, connector_id)
-        elif option == SMART_CHARGING_DISABLE_UNTIL_CHARGED:
-            await client.async_boost(charge_box_id, connector_id)
-        elif option in _TIMEBOX_MINUTES:
-            await client.async_timebox_boost(
-                charge_box_id, connector_id, _TIMEBOX_MINUTES[option]
-            )
-        else:
-            return
+        with command_errors("change smart charging"):
+            if option == SMART_CHARGING_ENABLE:
+                await client.async_unboost(charge_box_id, connector_id)
+            elif option == SMART_CHARGING_DISABLE_UNTIL_CHARGED:
+                await client.async_boost(charge_box_id, connector_id)
+            elif option in _TIMEBOX_MINUTES:
+                await client.async_timebox_boost(
+                    charge_box_id, connector_id, _TIMEBOX_MINUTES[option]
+                )
+            else:
+                return
 
         self._current_option = option
+        live_status = self._live_status_coordinator.data if self._live_status_coordinator else None
+        self._command_plan = (
+            (live_status.session_id, live_status.revision_number) if live_status else None
+        )
+        self._command_sent_at = time.monotonic()
         self.async_write_ha_state()
+        if self._live_status_coordinator is not None:
+            # pick up Clever's updated plan without waiting for the next poll
+            await self._live_status_coordinator.async_request_refresh()

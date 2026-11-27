@@ -6,11 +6,12 @@ from datetime import time as dt_time
 from homeassistant.components.time import TimeEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DEPARTURE_TIME_STEP_MINUTES, DOMAIN
 from .coordinator import CleverDataUpdateCoordinator
-from .entity import CleverChargerEntity
+from .entity import CleverChargerEntity, command_errors
 
 
 async def async_setup_entry(
@@ -59,9 +60,10 @@ class CleverDepartureTime(CleverChargerEntity, TimeEntity):
     async def async_set_value(self, value: dt_time) -> None:
         profile = self._charger.profile
         if profile is None:
-            return
+            raise HomeAssistantError("This charger has no Clever charging profile")
         rounded = _round_to_step(value, DEPARTURE_TIME_STEP_MINUTES)
-        await self.coordinator.client.async_set_departure_time(
-            profile.profile_id, f"{rounded.hour:02d}:{rounded.minute:02d}"
-        )
+        with command_errors("set the departure time"):
+            await self.coordinator.client.async_set_departure_time(
+                profile.profile_id, f"{rounded.hour:02d}:{rounded.minute:02d}"
+            )
         await self.coordinator.async_request_refresh()

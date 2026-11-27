@@ -4,6 +4,7 @@ from __future__ import annotations
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
@@ -13,7 +14,7 @@ from .const import (
     POWER_REQUIRED_STEP_KWH,
 )
 from .coordinator import CleverDataUpdateCoordinator
-from .entity import CleverChargerEntity
+from .entity import CleverChargerEntity, command_errors
 
 
 async def async_setup_entry(
@@ -51,8 +52,9 @@ class CleverPowerRequiredNumber(CleverChargerEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         profile = self._charger.profile
         if profile is None:
-            return
-        await self.coordinator.client.async_set_power_required(
-            profile.profile_id, int(value)
-        )
+            raise HomeAssistantError("This charger has no Clever charging profile")
+        with command_errors("set the required energy"):
+            await self.coordinator.client.async_set_power_required(
+                profile.profile_id, int(value)
+            )
         await self.coordinator.async_request_refresh()
