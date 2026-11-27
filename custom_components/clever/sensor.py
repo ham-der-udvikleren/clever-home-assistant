@@ -1,16 +1,26 @@
 """Sensor platform for Clever."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import (
+    RestoreSensor,
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import ExtraStoredData
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import CleverDataUpdateCoordinator
+from .energy_total import EnergyTotal
 from .entity import CleverChargerEntity, CleverLiveStatusEntity
 from .live_status_coordinator import CleverLiveStatusCoordinator
 from .models import CleverCharger
@@ -49,6 +59,7 @@ async def async_setup_entry(
             CleverLiveStatusSensor(live_status_coordinator, coordinator, description)
             for description in LIVE_STATUS_SENSOR_DESCRIPTIONS
         )
+        async_add_entities([CleverEnergyTotalSensor(live_status_coordinator, coordinator)])
 
 
 class CleverSensor(CleverChargerEntity, SensorEntity):
@@ -141,3 +152,75 @@ class CleverLiveStatusSensor(CleverLiveStatusEntity, SensorEntity):
         if status is None:
             return None
         return {"subtitle": status.status_subtitle, "segment_state": status.segment_state}
+
+
+@dataclass
+class _EnergyTotalStoredData(ExtraStoredData):
+    total: EnergyTotal
+
+    def as_dict(self) -> dict[str, Any]:
+        return self.total.as_dict()
+
+
+class CleverEnergyTotalSensor(CleverLiveStatusEntity, RestoreSensor):
+    """Total energy delivered by the charger, across all sessions.
+
+    Clever only reports the energy of the current session, so this adds up the
+    sessions and keeps the total across restarts. Usable in the energy dashboard.
+    """
+
+    _attr_translation_key = "energy_total"
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = "kWh"
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self,
+        coordinator: CleverLiveStatusCoordinator,
+        main_coordinator: CleverDataUpdateCoordinator,
+    ) -> None:
+        super().__init__(coordinator, main_coordinator)
+        self._attr_unique_id = "clever_energy_total"
+        self._total = EnergyTotal()
+        self._restored = False
+
+    @property
+    def available(self) -> bool:
+        # the total is still valid between sessions, when there is no live data
+        return self.coordinator.last_update_success
+
+    @property
+    def native_value(self) -> float:
+        return round(self._total.total_kwh, 3)
+
+    @property
+    def extra_restore_state_data(self) -> _EnergyTotalStoredData:
+        return _EnergyTotalStoredData(self._total)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if (stored := await self.async_get_last_extra_data()) is not None:
+            self._total = EnergyTotal.from_dict(stored.as_dict())
+            self._restored = True
+        self._update_total()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._update_total()
+        super()._handle_coordinator_update()
+
+    @callback
+    def _update_total(self) -> None:
+        status = self.coordinator.data
+        if status is None:
+            return
+        session = status.session_id or (
+            status.session_started_at.isoformat() if status.session_started_at else None
+        )
+        if not self._restored:
+            # first run: don't count a session that may have ended long ago
+            self._total.start_from(session, status.total_kwh_delivered)
+            self._restored = True
+            return
+        self._total.update(session, status.total_kwh_delivered)
