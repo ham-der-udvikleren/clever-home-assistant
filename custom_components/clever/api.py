@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import logging
 import time
 from typing import Any
 
@@ -28,6 +29,8 @@ from .const import (
 )
 from .exceptions import CleverApiError, CleverAuthError
 from .models import ChargingProfile, CleverCharger
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class CleverApiClient:
@@ -142,6 +145,7 @@ class CleverApiClient:
             async with self._session.request(
                 method, url, headers=self._api_headers(), **kwargs
             ) as resp:
+                _LOGGER.debug("%s %s -> %s", method, path, resp.status)
                 if resp.status == 401 and retry_on_auth_error:
                     await self._async_refresh_token()
                     return await self._async_request(
